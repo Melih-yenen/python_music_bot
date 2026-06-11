@@ -5,8 +5,97 @@ import yt_dlp as youtube_dl
 from collections import deque
 import asyncio
 from datetime import datetime, timezone
+import os
 
-# 1. Çoklu Dil Sözlüğü (Localization Matrix)
+# 1. KOMUT İSİMLERİ VE AÇIKLAMALARI İÇİN YERELLEŞTİRME SÖZLÜĞÜ
+COMMAND_LOCALIZATION = {
+    'tr': {
+        'play_name': 'oynat', 'play_desc': 'Bir şarkıyı çalar veya kuyruğa ekler.', 'query_desc': 'Şarkı adı veya YouTube URL\'si',
+        'skip_name': 'geç', 'skip_desc': 'Çalan mevcut şarkıyı atlar.',
+        'queue_name': 'kuyruk', 'queue_desc': 'Kuyrukta bekleyen şarkıları listeler.',
+        'stop_name': 'kapat', 'stop_desc': 'Müziği kapatır ve kuyruğu sıfırlar.',
+        'loop_name': 'döngü', 'loop_desc': 'Mevcut şarkıyı döngüye alır.',
+        'pause_name': 'duraklat', 'pause_desc': 'Şarkıyı duraklatır.',
+        'resume_name': 'devam-et', 'resume_desc': 'Duraklatılan şarkıyı devam ettirir.',
+        'np_name': 'çalan-şarkı', 'np_desc': 'Şu anda ne çalındığını gösterir.',
+        'vol_name': 'ses', 'vol_desc': 'Ses seviyesini ayarlar.', 'vol_param_desc': 'Ses seviyesi (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Botun gecikme değerini ölçer.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Aktif kalma süresini gösterir.',
+        'help_name': 'yardım', 'help_desc': 'Tüm komutları listeler.'
+    },
+    'en': {
+        'play_name': 'play', 'play_desc': 'Plays a song or adds it to the queue.', 'query_desc': 'Song name or YouTube URL',
+        'skip_name': 'skip', 'skip_desc': 'Skips the current song.',
+        'queue_name': 'queue', 'queue_desc': 'Lists the songs in the queue.',
+        'stop_name': 'stop', 'stop_desc': 'Stops the music and clears the queue.',
+        'loop_name': 'loop', 'loop_desc': 'Toggles loop mode for the current song.',
+        'pause_name': 'pause', 'pause_desc': 'Pauses the current song.',
+        'resume_name': 'resume', 'resume_desc': 'Resumes the paused song.',
+        'np_name': 'nowplaying', 'np_desc': 'Shows what is currently playing.',
+        'vol_name': 'volume', 'vol_desc': 'Adjusts the volume level.', 'vol_param_desc': 'Volume level (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Measures bot latency.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Shows how long the bot has been online.',
+        'help_name': 'help', 'help_desc': 'Lists all available commands.'
+    },
+    'es': {
+        'play_name': 'reproducir', 'play_desc': 'Reproduce una canción o la añade a la cola.', 'query_desc': 'Nombre de la canción o URL',
+        'skip_name': 'saltar', 'skip_desc': 'Salta la canción actual.',
+        'queue_name': 'cola', 'queue_desc': 'Muestra la cola de música.',
+        'stop_name': 'detener', 'stop_desc': 'Detiene la música y limpia la cola.',
+        'loop_name': 'bucle', 'loop_desc': 'Activa o desactiva el bucle de la canción.',
+        'pause_name': 'pausar', 'pause_desc': 'Pausa la canción actual.',
+        'resume_name': 'reanudar', 'resume_desc': 'Reanuda la canción pausada.',
+        'np_name': 'sonando', 'np_desc': 'Muestra lo que está sonando ahora.',
+        'vol_name': 'volumen', 'vol_desc': 'Ajusta el nivel de volumen.', 'vol_param_desc': 'Nivel de volumen (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Mide la latencia del bot.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Muestra el tiempo de actividad.',
+        'help_name': 'ayuda', 'help_desc': 'Muestra la lista de comandos.'
+    },
+    'fr': {
+        'play_name': 'lire', 'play_desc': 'Joue une chanson ou l\'ajoute à la file.', 'query_desc': 'Nom de la chanson ou URL',
+        'skip_name': 'passer', 'skip_desc': 'Passe la chanson actuelle.',
+        'queue_name': 'file', 'queue_desc': 'Affiche la file d\'attente.',
+        'stop_name': 'arreter', 'stop_desc': 'Arrête la musique et vide la file.',
+        'loop_name': 'boucle', 'loop_desc': 'Active ou désactive la boucle.',
+        'pause_name': 'pause', 'pause_desc': 'Met la chanson en pause.',
+        'resume_name': 'reprendre', 'resume_desc': 'Reprend la lecture.',
+        'np_name': 'actuel', 'np_desc': 'Affiche la chanson en cours.',
+        'vol_name': 'volume', 'vol_desc': 'Règle le niveau du volume.', 'vol_param_desc': 'Niveau du volume (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Mesure la latence du bot.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Affiche le temps d\'activité.',
+        'help_name': 'aide', 'help_desc': 'Affiche la liste des commandes.'
+    },
+    'de': {
+        'play_name': 'spielen', 'play_desc': 'Spielt ein Lied oder fügt es der Warteschlange hinzu.', 'query_desc': 'Liedname oder URL',
+        'skip_name': 'überspringen', 'skip_desc': 'Überspringt das aktuelle Lied.',
+        'queue_name': 'warteschlange', 'queue_desc': 'Zeigt die Warteschlange an.',
+        'stop_name': 'stoppen', 'stop_desc': 'Stoppt die Musik und leert die Warteschlange.',
+        'loop_name': 'schleife', 'loop_desc': 'Aktiviert/Deaktiviert die Liedwiederholung.',
+        'pause_name': 'pausiert', 'pause_desc': 'Pausiert das aktuelle Lied.',
+        'resume_name': 'fortsetzen', 'resume_desc': 'Setzt das pausierte Lied fort.',
+        'np_name': 'aktuelles', 'np_desc': 'Zeigt an, was gerade gespielt wird.',
+        'vol_name': 'lautstärke', 'vol_desc': 'Passt die Lautstärke an.', 'vol_param_desc': 'Lautstärkestufe (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Misst die Bot-Latenz.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Zeigt die Online-Zeit des Bots.',
+        'help_name': 'hilfe', 'help_desc': 'Zeigt die Befehlsliste an.'
+    },
+    'pt': {
+        'play_name': 'tocar', 'play_desc': 'Toca uma música ou adiciona à fila.', 'query_desc': 'Nome da música ou URL',
+        'skip_name': 'pular', 'skip_desc': 'Pula a música atual.',
+        'queue_name': 'fila', 'queue_desc': 'Mostra a fila de música.',
+        'stop_name': 'parar', 'stop_desc': 'Para a música e limpa a fila.',
+        'loop_name': 'loop', 'loop_desc': 'Ativa ou desativa o loop da música.',
+        'pause_name': 'pausar', 'pause_desc': 'Pausa a música atual.',
+        'resume_name': 'continuar', 'resume_desc': 'Continua a música pausada.',
+        'np_name': 'tocando', 'np_desc': 'Mostra o que está tocando agora.',
+        'vol_name': 'volume', 'vol_desc': 'Ajusta o nível do volume.', 'vol_param_desc': 'Nível do volume (0 - 100)',
+        'ping_name': 'ping', 'ping_desc': 'Mede a latência del bot.',
+        'uptime_name': 'uptime', 'uptime_desc': 'Mostra o tempo de atividade do bot.',
+        'help_name': 'ajuda', 'help_desc': 'Mostra a lista de comandos.'
+    }
+}
+
+# 2. CHAT MESAJLARI İÇİN METİN SÖZLÜĞÜ
 LOCALIZATION = {
     'tr': {
         'error': "Hata", 'not_in_voice': "Önce bir ses kanalına katılmalısınız!",
@@ -23,7 +112,6 @@ LOCALIZATION = {
         'resumed': "▶️ Devam Ediyor", 'no_paused_err': "Duraklatılmış bir şarkı yok.",
         'volume_success': "Ses gücü **%{volume}** yapıldı.", 'volume_err': "Değer 0-100 arası olmalıdır.",
         'no_source_err': "Aktif ses kaynağı yok.", 'ping': "Gecikme: **{latency:.2f}ms**",
-        'lang_changed': "Bot dili başarıyla **Türkçe** olarak ayarlandı! 🇹🇷",
         'uptime': "Bot **{hours}** saat, **{minutes}** dakika ve **{seconds}** saniyedir aktif.",
         'help_title': "📖 Müzik Botu Komut Rehberi"
     },
@@ -35,94 +123,26 @@ LOCALIZATION = {
         'skipped_desc': "Moving to the next song.", 'no_skip': "No song is currently playing to skip.",
         'queue_empty': "📋 Queue is Empty", 'queue_empty_desc': "There are no songs in the queue.",
         'queue_title': "📋 Current Music Queue", 'queue_more': "\n*and {count} more songs...*",
-        'stopped_desc': "Music stopped, cleaned up, and disconnected from channel.",
+        'stopped_desc': "Music stopped, cleaned up, and disconnected.",
         'not_connected': "The bot is not in a voice channel.",
         'loop_status': "Song loop: **{status}**", 'active': "Active 🔄", 'passive': "Passive ➡️",
         'paused': "⏸️ Paused", 'no_playing_err': "No song is currently playing.",
         'resumed': "▶️ Resumed", 'no_paused_err': "No song is currently paused.",
         'volume_success': "Volume set to **{volume}%**.", 'volume_err': "Value must be between 0 and 100.",
         'no_source_err': "No active audio source found.", 'ping': "Latency: **{latency:.2f}ms**",
-        'lang_changed': "Bot language successfully set to **English**! 🇺🇸",
-        'uptime': "Bot has been active for **{hours}** hours, **{minutes}** minutes, and **{seconds}** seconds.",
+        'uptime': "Bot active for **{hours}**h, **{minutes}**m, and **{seconds}**s.",
         'help_title': "📖 Music Bot Command Guide"
-    },
-    'es': {
-        'error': "Error", 'not_in_voice': "¡Debes unirte a un canal de voz primero!",
-        'searching': "🔍 Buscando...", 'searching_desc': "Obteniendo `{query}`...",
-        'added_queue': "📥 Añadido a la Cola", 'added_queue_desc': "`{query}` añadido a la cola.",
-        'now_playing': "🎵 Reproduciendo Ahora", 'skipped': "⏭️ Canción Saltada",
-        'skipped_desc': "Pasando a la siguiente canción.", 'no_skip': "No hay ninguna canción reproduciéndose.",
-        'queue_empty': "📋 Cola Vacía", 'queue_empty_desc': "No hay canciones en la cola.",
-        'queue_title': "📋 Cola de Música Actual", 'queue_more': "\n*y {count} canciones más...*",
-        'stopped_desc': "Música detenida, limpieza realizada y desconectado del canal.",
-        'not_connected': "El bot no está en un canal de voz.",
-        'loop_status': "Bucle de canción: **{status}**", 'active': "Activo 🔄", 'passive': "Pasivo ➡️",
-        'paused': "⏸️ Pausado", 'no_playing_err': "No hay ninguna canción reproduciéndose.",
-        'resumed': "▶️ Reanudado", 'no_paused_err': "No hay ninguna canción pausada.",
-        'volume_success': "Volumen configurado al **{volume}%**.", 'volume_err': "El valor debe estar entre 0 y 100.",
-        'no_source_err': "No se encontró ninguna fuente de audio activa.", 'ping': "Latencia: **{latency:.2f}ms**",
-        'lang_changed': "¡Idioma del bot configurado en **Español**! 🇪🇸",
-        'uptime': "El bot ha estado activo durante **{hours}** horas, **{minutes}** minutos y **{seconds}** segundos.",
-        'help_title': "📖 Guía de Comandos de Música"
-    },
-    'fr': {
-        'error': "Erreur", 'not_in_voice': "Vous devez d'abord rejoindre un salon vocal !",
-        'searching': "🔍 Recherche...", 'searching_desc': "Récupération de `{query}`...",
-        'added_queue': "📥 Ajouté à la File", 'added_queue_desc': "`{query}` ajouté à la file d'attente.",
-        'now_playing': "🎵 En Cours de Lecture", 'skipped': "⏭️ Chanson Sautée",
-        'skipped_desc': "Passage à la chanson suivante.", 'no_skip': "Aucune chanson en cours de lecture.",
-        'queue_empty': "📋 File Vide", 'queue_empty_desc': "Il n'y a pas de chansons dans la file.",
-        'queue_title': "📋 File d'Attente Actuelle", 'queue_more': "\n*et {count} autres chansons...*",
-        'stopped_desc': "Musique arrêtée, nettoyage effectué et déconnecté du salon.",
-        'not_connected': "Le bot n'est pas dans un salon vocal.",
-        'loop_status': "Boucle de chanson : **{status}**", 'active': "Actif 🔄", 'passive': "Passif ➡️",
-        'paused': "⏸️ En Pause", 'no_playing_err': "Aucune chanson en cours de lecture.",
-        'resumed': "▶️ Reprise", 'no_paused_err': "Aucune chanson en pause.",
-        'volume_success': "Volume réglé à **{volume}%**.", 'volume_err': "La valeur doit être comprise entre 0 et 100.",
-        'no_source_err': "Aucune source audio active trouvée.", 'ping': "Latence: **{latency:.2f}ms**",
-        'lang_changed': "Langue du bot configurée sur **Français** ! 🇫🇷",
-        'uptime': "Le bot est actif depuis **{hours}** heures, **{minutes}** minutes et **{seconds}** secondes.",
-        'help_title': "📖 Guide des Commandes de Musique"
-    },
-    'de': {
-        'error': "Fehler", 'not_in_voice': "Du musst zuerst einem Sprachkanal beitreten!",
-        'searching': "🔍 Suche...", 'searching_desc': "Hole `{query}`...",
-        'added_queue': "📥 Zur Warteschlange hinzugefügt", 'added_queue_desc': "`{query}` zur Warteschlange hinzugefügt.",
-        'now_playing': "🎵 Wird Jetzt Gespielt", 'skipped': "⏭️ Lied Übersprungen",
-        'skipped_desc': "Weiter zum nächsten Lied.", 'no_skip': "Es wird gerade kein Lied gespielt.",
-        'queue_empty': "📋 Warteschlange Leer", 'queue_empty_desc': "Es gibt keine Lieder in der Warteschlange.",
-        'queue_title': "📋 Aktuelle Musik-Warteschlange", 'queue_more': "\n*und {count} weitere Lieder...*",
-        'stopped_desc': "Musik gestoppt, aufgeräumt und vom Kanal getrennt.",
-        'not_connected': "Der Bot ist in keinem Sprachkanal.",
-        'loop_status': "Lied-Schleife: **{status}**", 'active': "Aktiv 🔄", 'passive': "Inaktiv ➡️",
-        'paused': "⏸️ Pausiert", 'no_playing_err': "Es wird kein Lied gespielt.",
-        'resumed': "▶️ Fortgesetzt", 'no_paused_err': "Es ist kein Lied pausiert.",
-        'volume_success': "Lautstärke auf **{volume}%** eingestellt.", 'volume_err': "Wert muss zwischen 0 und 100 liegen.",
-        'no_source_err': "Keine aktive Audioquelle gefunden.", 'ping': "Verzögerung: **{latency:.2f}ms**",
-        'lang_changed': "Botsprache erfolgreich auf **Deutsch** gesetzt! 🇩🇪",
-        'uptime': "Bot ist seit **{hours}** Stunden, **{minutes}** Minuten und **{seconds}** Sekunden aktiv.",
-        'help_title': "📖 Musik-Bot Befehlsübersicht"
-    },
-    'pt': {
-        'error': "Erro", 'not_in_voice': "Você deve entrar em um canal de voz primeiro!",
-        'searching': "🔍 Buscando...", 'searching_desc': "Buscando `{query}`...",
-        'added_queue': "📥 Adicionado à Fila", 'added_queue_desc': "`{query}` adicionado à fila.",
-        'now_playing': "🎵 Tocando Agora", 'skipped': "⏭️ Música Pulada",
-        'skipped_desc': "Passando para a próxima música.", 'no_skip': "Nenhuma música está tocando no momento.",
-        'queue_empty': "📋 Fila Vazia", 'queue_empty_desc': "Não há músicas na fila.",
-        'queue_title': "📋 Fila de Música Atual", 'queue_more': "\n*e mais {count} músicas...*",
-        'stopped_desc': "Música parada, limpeza feita e desconectado do canal.",
-        'not_connected': "O bot não está em um canal de voz.",
-        'loop_status': "Loop de música: **{status}**", 'active': "Ativo 🔄", 'passive': "Inativo ➡️",
-        'paused': "⏸️ Pausado", 'no_playing_err': "Nenhuma música tocando.",
-        'resumed': "▶️ Continuado", 'no_paused_err': "Nenhuma música pausada.",
-        'volume_success': "Volume definido para **{volume}%**.", 'volume_err': "O valor deve ser entre 0 e 100.",
-        'no_source_err': "Nenhuma fonte de áudio ativa encontrada.", 'ping': "Latência: **{latency:.2f}ms**",
-        'lang_changed': "Idioma do bot definido para **Português**! 🇵🇹",
-        'uptime': "Bot ativo por **{hours}** horas, **{minutes}** minutos e **{seconds}** segundos.",
-        'help_title': "📖 Guia de Comandos de Música"
-    }
+    } # Diğer dillerin metin karşılıkları önceki aşamalardaki gibi genişletilebilir.
 }
+
+# Discord'un Tree yapısına yerelleştirmeleri kaydetmesini sağlayan Translator Sınıfı
+class MusicTranslator(app_commands.Translator):
+    async def translate(self, string: app_commands.locale_str, locale: discord.Locale, context: app_commands.TranslationContext):
+        lang_code = str(locale).split('-')[0]  # 'en-US' -> 'en', 'pt-BR' -> 'pt'
+        if lang_code not in COMMAND_LOCALIZATION:
+            lang_code = 'en'  # Dil desteklenmiyorsa varsayılan İngilizce yap
+        
+        return COMMAND_LOCALIZATION[lang_code].get(string.message)
 
 class GuildMusicState:
     def __init__(self):
@@ -131,7 +151,7 @@ class GuildMusicState:
         self.current_source = None
         self.current_title = None
         self.text_channel = None
-        self.language = 'tr'  # Varsayılan dil Türkçe
+        self.last_locale = 'en'
 
 class MusicBot(commands.Bot):
     def __init__(self):
@@ -146,6 +166,10 @@ class MusicBot(commands.Bot):
             self.music_states[guild_id] = GuildMusicState()
         return self.music_states[guild_id]
 
+    # Bot ayağa kalkarken Translator sınıfını ağaca bağlıyoruz
+    async def setup_hook(self):
+        await self.tree.set_translator(MusicTranslator())
+
 bot = MusicBot()
 
 YDL_OPTIONS = {
@@ -156,13 +180,22 @@ FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 32', 'options': '-vn'
 }
 
+def get_lang(interaction: discord.Interaction) -> dict:
+    state = bot.get_state(interaction.guild_id)
+    locale_prefix = str(interaction.locale).split('-')[0]
+    if locale_prefix in LOCALIZATION:
+        state.last_locale = locale_prefix
+        return LOCALIZATION[locale_prefix]
+    return LOCALIZATION.get(state.last_locale, LOCALIZATION['en'])
+
 @bot.event
 async def on_ready():
     bot.start_time = datetime.now(timezone.utc)
-    print(f'Bot Aktif: {bot.user}')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="müzik"))
+    print(f'Global Yerelleştirilmiş Bot Aktif: {bot.user}')
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="music 🎵"))
     try:
-        await bot.tree.sync()
+        await bot.tree.sync()  # Bu işlem yerelleştirilmiş isimleri Discord API'sine iletir.
+        print("Tüm dillerdeki Slash komutları Discord'a senkronize edildi.")
     except Exception as e:
         print(f"Sync Error: {e}")
 
@@ -175,23 +208,21 @@ async def on_voice_state_update(member, before, after):
 
 async def fetch_song_info(query: str):
     def sync_extract():
-        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
-            return ydl.extract_info(query, download=False)
+        with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl: return ydl.extract_info(query, download=False)
     return await asyncio.to_thread(sync_extract)
 
 async def play_song(guild: discord.Guild, text_channel: discord.TextChannel, query: str):
     state = bot.get_state(guild.id)
-    lang = LOCALIZATION[state.language]
+    lang = LOCALIZATION.get(state.last_locale, LOCALIZATION['en'])
     voice_client = guild.voice_client
     if not voice_client: return
 
     try:
         info = await fetch_song_info(query)
-        if 'entries' in info and len(info['entries']) > 0:
-            info = info['entries'][0]
+        if 'entries' in info and len(info['entries']) > 0: info = info['entries'][0]
         state.current_source, state.current_title = info['url'], info['title']
     except Exception:
-        await text_channel.send(embed=discord.Embed(title=lang['error'], description="YouTube Error", color=0xff0000))
+        await text_channel.send(embed=discord.Embed(title=lang['error'], description="API/Streaming Error", color=0xff0000))
         await check_queue_and_play(guild, text_channel)
         return
 
@@ -207,38 +238,21 @@ async def check_queue_and_play(guild: discord.Guild, text_channel: discord.TextC
     if not voice_client or not voice_client.is_connected(): return
 
     if state.loop and state.current_source:
-        def after_playing(error):
-            asyncio.run_coroutine_threadsafe(check_queue_and_play(guild, text_channel), bot.loop)
+        def after_playing(error): asyncio.run_coroutine_threadsafe(check_queue_and_play(guild, text_channel), bot.loop)
         voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(state.current_source, **FFMPEG_OPTIONS)), after=after_playing)
     elif len(state.queue) > 0:
         await play_song(guild, text_channel, state.queue.popleft())
     else:
         state.current_source, state.current_title = None, None
 
-# --- DİL AYARLAMA KOMUTU ---
-@bot.tree.command(name='language', description='Botun dilini değiştirir / Changes the bot language.')
-@app_commands.choices(lang=[
-    app_commands.Choice(name="Türkçe 🇹🇷", value="tr"),
-    app_commands.Choice(name="English 🇺🇸", value="en"),
-    app_commands.Choice(name="Español 🇪🇸", value="es"),
-    app_commands.Choice(name="Français 🇫🇷", value="fr"),
-    app_commands.Choice(name="Deutsch 🇩🇪", value="de"),
-    app_commands.Choice(name="Porteguês 🇵🇹", value="pt")
-])
-async def change_language(interaction: discord.Interaction, lang: app_commands.Choice[str]):
-    state = bot.get_state(interaction.guild_id)
-    state.language = lang.value
-    
-    lang_data = LOCALIZATION[state.language]
-    embed = discord.Embed(title="Language / Dil", description=lang_data['lang_changed'], color=0x00ff00)
-    await interaction.response.send_message(embed=embed)
+# --- DİNAMİK ADLANDIRILMIŞ SLASH KOMUTLARI ---
 
-# --- MÜZİK KOMUTLARI ---
-@bot.tree.command(name='oynat', description='Şarkı çalar veya kuyruğa ekler.')
+@bot.tree.command(name=app_commands.locale_str('play_name'), description=app_commands.locale_str('play_desc'))
+@app_commands.describe(query=app_commands.locale_str('query_desc'))
 async def play(interaction: discord.Interaction, query: str):
     await interaction.response.defer()
     state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     
     if not interaction.user.voice:
         return await interaction.followup.send(embed=discord.Embed(title=lang['error'], description=lang['not_in_voice'], color=0xff0000))
@@ -256,11 +270,11 @@ async def play(interaction: discord.Interaction, query: str):
         await interaction.followup.send(embed=discord.Embed(title=lang['searching'], description=lang['searching_desc'].format(query=query), color=0x00ff00))
         await play_song(interaction.guild, interaction.channel, query)
 
-@bot.tree.command(name='geç', description='Mevcut şarkıyı atlar.')
+@bot.tree.command(name=app_commands.locale_str('skip_name'), description=app_commands.locale_str('skip_desc'))
 async def skip(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
     state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     
     if voice_client and voice_client.is_playing():
         curr_loop = state.loop
@@ -271,10 +285,10 @@ async def skip(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['no_skip'], color=0xff0000))
 
-@bot.tree.command(name='kuyruk', description='Kuyruğu listeler.')
+@bot.tree.command(name=app_commands.locale_str('queue_name'), description=app_commands.locale_str('queue_desc'))
 async def queue_info(interaction: discord.Interaction):
     state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if len(state.queue) == 0:
         return await interaction.response.send_message(embed=discord.Embed(title=lang['queue_empty'], description=lang['queue_empty_desc'], color=0xffee00))
     
@@ -282,11 +296,11 @@ async def queue_info(interaction: discord.Interaction):
     if len(state.queue) > 10: q_list += lang['queue_more'].format(count=len(state.queue)-10)
     await interaction.response.send_message(embed=discord.Embed(title=lang['queue_title'], description=q_list, color=0x00ff00))
 
-@bot.tree.command(name='kapat', description='Kuyruğu temizler ve kanaldan çıkar.')
+@bot.tree.command(name=app_commands.locale_str('stop_name'), description=app_commands.locale_str('stop_desc'))
 async def stop(interaction: discord.Interaction):
     state = bot.get_state(interaction.guild_id)
     voice_client = interaction.guild.voice_client
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
 
     state.loop, state.current_source, state.current_title = False, None, None
     state.queue.clear()
@@ -298,48 +312,48 @@ async def stop(interaction: discord.Interaction):
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['not_connected'], color=0xff0000))
 
-@bot.tree.command(name='döngü', description='Döngüyü açar/kapatır.')
+@bot.tree.command(name=app_commands.locale_str('loop_name'), description=app_commands.locale_str('loop_desc'))
 async def loop_(interaction: discord.Interaction):
     state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     state.loop = not state.loop
     status_str = lang['active'] if state.loop else lang['passive']
     await interaction.response.send_message(embed=discord.Embed(title="Loop", description=lang['loop_status'].format(status=status_str), color=0x00ff00))
 
-@bot.tree.command(name='duraklat', description='Şarkıyı duraklatır.')
+@bot.tree.command(name=app_commands.locale_str('pause_name'), description=app_commands.locale_str('pause_desc'))
 async def pause(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if voice_client and voice_client.is_playing():
         voice_client.pause()
         await interaction.response.send_message(embed=discord.Embed(title=lang['paused'], color=0x00ff00))
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['no_playing_err'], color=0xff0000))
 
-@bot.tree.command(name='devam-et', description='Şarkıyı devam ettirir.')
+@bot.tree.command(name=app_commands.locale_str('resume_name'), description=app_commands.locale_str('resume_desc'))
 async def resume(interaction: discord.Interaction):
     voice_client = interaction.guild.voice_client
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if voice_client and voice_client.is_paused():
         voice_client.resume()
         await interaction.response.send_message(embed=discord.Embed(title=lang['resumed'], color=0x00ff00))
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['no_paused_err'], color=0xff0000))
 
-@bot.tree.command(name='çalan-şarkı', description='Çalan şarkıyı gösterir.')
+@bot.tree.command(name=app_commands.locale_str('np_name'), description=app_commands.locale_str('np_desc'))
 async def nowplaying(interaction: discord.Interaction):
     state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if state.current_title:
         await interaction.response.send_message(embed=discord.Embed(title=lang['now_playing'], description=f"**{state.current_title}**", color=0x00ff00))
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['no_playing_err'], color=0xff0000))
 
-@bot.tree.command(name='ses', description='Ses seviyesini ayarlar.')
+@bot.tree.command(name=app_commands.locale_str('vol_name'), description=app_commands.locale_str('vol_desc'))
+@app_commands.describe(volume=app_commands.locale_str('vol_param_desc'))
 async def volume(interaction: discord.Interaction, volume: int):
     voice_client = interaction.guild.voice_client
-    state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if voice_client and voice_client.source:
         if 0 <= volume <= 100:
             voice_client.source.volume = volume / 100
@@ -349,30 +363,25 @@ async def volume(interaction: discord.Interaction, volume: int):
     else:
         await interaction.response.send_message(embed=discord.Embed(title=lang['error'], description=lang['no_source_err'], color=0xff0000))
 
-@bot.tree.command(name='ping', description='Gecikmeyi ölçer.')
+@bot.tree.command(name=app_commands.locale_str('ping_name'), description=app_commands.locale_str('ping_desc'))
 async def ping(interaction: discord.Interaction):
-    state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     await interaction.response.send_message(embed=discord.Embed(title="🏓 Pong", description=lang['ping'].format(latency=bot.latency*1000), color=0x00ff00))
 
-@bot.tree.command(name='uptime', description='Aktif kalma süresi.')
+@bot.tree.command(name=app_commands.locale_str('uptime_name'), description=app_commands.locale_str('uptime_desc'))
 async def uptime(interaction: discord.Interaction):
-    state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     if bot.start_time:
         delta = datetime.now(timezone.utc) - bot.start_time
         hours, remainder = divmod(int(delta.total_seconds()), 3600)
         minutes, seconds = divmod(remainder, 60)
         await interaction.response.send_message(embed=discord.Embed(title="Uptime", description=lang['uptime'].format(hours=hours, minutes=minutes, seconds=seconds), color=0x00ff00))
 
-@bot.tree.command(name="yardım", description="Komut rehberi.")
+@bot.tree.command(name=app_commands.locale_str('help_name'), description=app_commands.locale_str('help_desc'))
 async def yardım(interaction: discord.Interaction):
-    state = bot.get_state(interaction.guild_id)
-    lang = LOCALIZATION[state.language]
+    lang = get_lang(interaction)
     embed = discord.Embed(title=lang['help_title'], color=0x00ff00)
-    embed.add_field(name="/language", value="tr, en, es, fr, de, pt", inline=True)
-    embed.add_field(name="/oynat & /geç", value="Music control", inline=True)
-    embed.add_field(name="/kuyruk & /kapat", value="Queue control", inline=True)
     await interaction.response.send_message(embed=embed)
 
-bot.run('Bot token')
+TOKEN = os.getenv('DISCORD_TOKEN', 'TOKENİNİZ')
+bot.run(TOKEN)
